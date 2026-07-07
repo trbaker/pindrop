@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pin Drop Duel — Coordinate Challenge</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e2233;
+    --deep:#123a52;
+    --paper:#eaf2f6;
+    --card:#ffffff;
+    --teal:#0fa3a3;
+    --teal-dk:#0b7d7d;
+    --coral:#ff6b5e;
+    --coral-dk:#d94f43;
+    --sun:#ffc845;
+    --cobalt:#1f5edc;
+    --cobalt-dk:#1747a8;
+    --line:#c7d8e2;
+    --radius:14px;
+    --disp:'Fredoka','Arial Rounded MT Bold',system-ui,sans-serif;
+    --body:'Nunito','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--body);background:var(--paper);color:var(--ink);overflow:hidden}
+  button{font-family:var(--disp);cursor:pointer;border:none}
+  button:focus-visible,input:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+  /* ---------- App frame ---------- */
+  #app{height:100%;display:flex;flex-direction:column}
+  header{
+    background:var(--ink);color:#fff;padding:10px 16px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;z-index:1200;
+  }
+  header .logo{font-family:var(--disp);font-weight:700;font-size:1.25rem;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  header .logo .pin{color:var(--sun)}
+  .chip{
+    background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+    border-radius:999px;padding:4px 14px;font-weight:800;font-size:.85rem;letter-spacing:1px;
+  }
+  .chip b{color:var(--sun);letter-spacing:3px}
+  .scores{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .scorepill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);border-radius:999px;padding:4px 12px;font-weight:800;font-size:.9rem}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .dot.me{background:var(--teal)} .dot.them{background:var(--coral)}
+
+  #main{flex:1;position:relative;min-height:0}
+  #map{position:absolute;inset:0;background:#bcd6e4}
+
+  /* ---------- Panels & overlays ---------- */
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#0e2233 0%,#123a52 55%,#155e75 100%);
+    z-index:1000;padding:20px;overflow:auto;
+  }
+  .panel{
+    background:var(--card);border-radius:20px;padding:32px 30px;max-width:460px;width:100%;
+    box-shadow:0 18px 50px rgba(3,20,33,.45);text-align:center;
+  }
+  .panel h1{font-family:var(--disp);font-size:2rem;line-height:1.1;margin-bottom:4px}
+  .panel h1 .pin{color:var(--coral)}
+  .panel .tag{color:#4d6b7d;font-weight:700;margin-bottom:22px}
+  .panel label{display:block;text-align:left;font-weight:800;font-size:.8rem;letter-spacing:1px;text-transform:uppercase;color:#4d6b7d;margin:14px 0 5px}
+  .panel input{
+    width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:12px;
+    font-family:var(--body);font-weight:700;font-size:1rem;background:#f6fafc;color:var(--ink);
+  }
+  .panel input.code{letter-spacing:8px;text-transform:uppercase;font-family:var(--disp);font-size:1.3rem;text-align:center}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    padding:13px 18px;border-radius:12px;font-size:1.05rem;font-weight:600;color:#fff;
+    background:var(--cobalt);margin-top:12px;transition:transform .08s, background .15s;
+  }
+  .btn:hover{background:var(--cobalt-dk)} .btn:active{transform:scale(.98)}
+  .btn.alt{background:var(--teal)} .btn.alt:hover{background:var(--teal-dk)}
+  .btn.warn{background:var(--coral)} .btn.warn:hover{background:var(--coral-dk)}
+  .btn.ghost{background:transparent;color:var(--cobalt);border:2px solid var(--cobalt)}
+  .btn.ghost:hover{background:#eef3fd}
+  .btn:disabled{background:#9db2c2;cursor:not-allowed;transform:none}
+  .divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:#8aa4b5;font-weight:800;font-size:.8rem;letter-spacing:2px}
+  .divider::before,.divider::after{content:"";flex:1;height:2px;background:var(--line)}
+  .seg{display:flex;gap:8px;margin-top:4px}
+  .seg button{
+    flex:1;padding:10px;border-radius:12px;border:2px solid var(--line);background:#f6fafc;
+    font-weight:600;font-size:.9rem;color:#4d6b7d;
+  }
+  .seg button.on{border-color:var(--cobalt);background:#e8effc;color:var(--cobalt)}
+  .err{color:var(--coral-dk);font-weight:800;font-size:.9rem;margin-top:10px;min-height:1.2em}
+  .fineprint{margin-top:16px;font-size:.72rem;color:#8aa4b5;font-weight:600;line-height:1.4}
+
+  /* waiting room ticket */
+  .ticket{
+    margin:18px auto 6px;border:3px dashed var(--cobalt);border-radius:16px;padding:18px;
+    background:#f2f7ff;
+  }
+  .ticket .lbl{font-size:.75rem;font-weight:800;letter-spacing:2px;color:#4d6b7d;text-transform:uppercase}
+  .ticket .code{font-family:var(--disp);font-size:3rem;font-weight:700;letter-spacing:14px;color:var(--cobalt);margin-left:14px}
+  .pulse{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--sun);margin-right:8px;animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  /* ---------- Clue bar (in game) ---------- */
+  #cluebar{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:1100;
+    width:min(560px,calc(100% - 24px));
+  }
+  .clue{
+    background:var(--card);border-radius:var(--radius);box-shadow:0 10px 30px rgba(3,20,33,.35);
+    padding:14px 16px;display:flex;gap:14px;align-items:center;
+  }
+  .roundbadge{
+    flex:none;width:56px;height:56px;border-radius:50%;background:var(--ink);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--disp);
+  }
+  .roundbadge .n{font-size:1.3rem;font-weight:700;line-height:1}
+  .roundbadge .of{font-size:.6rem;letter-spacing:1px;color:var(--sun)}
+  .clue .txt{flex:1;min-width:0;text-align:left}
+  .clue .kind{font-size:.7rem;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--cobalt)}
+  .clue .target{font-family:var(--disp);font-weight:600;font-size:1.15rem;line-height:1.2}
+  .clue .sub{font-size:.8rem;color:#4d6b7d;font-weight:700}
+  .clue .act{flex:none;display:flex;flex-direction:column;gap:6px;align-items:stretch}
+  .clue .act .btn{margin-top:0;width:auto;padding:10px 16px;font-size:.95rem}
+  .coordreadout{font-variant-numeric:tabular-nums}
+
+  /* ---------- Reveal card ---------- */
+  #reveal{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:1100;
+    width:min(560px,calc(100% - 24px));
+  }
+  .revealcard{background:var(--card);border-radius:var(--radius);box-shadow:0 10px 30px rgba(3,20,33,.35);padding:16px 18px}
+  .revealcard h2{font-family:var(--disp);font-size:1.15rem;margin-bottom:2px}
+  .revealcard .place{color:#4d6b7d;font-weight:700;font-size:.85rem;margin-bottom:10px}
+  .distrow{display:flex;gap:8px}
+  .distbox{flex:1;border-radius:12px;padding:8px 10px;text-align:center}
+  .distbox.me{background:#e2f6f4;border:2px solid var(--teal)}
+  .distbox.them{background:#ffece9;border:2px solid var(--coral)}
+  .distbox .who{font-size:.72rem;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+  .distbox .km{font-family:var(--disp);font-size:1.25rem;font-weight:700}
+  .distbox .mi{font-size:.72rem;color:#4d6b7d;font-weight:700}
+  .verdict{margin:10px 0 4px;font-family:var(--disp);font-weight:600;font-size:1.05rem;text-align:center}
+  .verdict.win{color:var(--teal-dk)} .verdict.lose{color:var(--coral-dk)} .verdict.tie{color:var(--cobalt)}
+
+  /* map markers */
+  .truestar{font-size:26px;line-height:26px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .pinlabel{
+    background:var(--ink);color:#fff;border-radius:8px;padding:2px 8px;font-weight:800;font-size:.72rem;
+    white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35)
+  }
+
+  /* status toast */
+  #toast{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:1100;
+    background:var(--ink);color:#fff;font-weight:800;font-size:.85rem;border-radius:999px;
+    padding:7px 18px;box-shadow:0 6px 18px rgba(3,20,33,.4);display:none;
+  }
+
+  /* final screen bits */
+  .trophy{font-size:3.2rem;margin-bottom:6px}
+  .finaltable{width:100%;border-collapse:collapse;margin:14px 0 4px;font-size:.85rem}
+  .finaltable th{font-size:.7rem;letter-spacing:1px;text-transform:uppercase;color:#4d6b7d;padding:4px}
+  .finaltable td{padding:5px 4px;border-top:1px solid var(--line);font-weight:700}
+  .finaltable td.me{color:var(--teal-dk)} .finaltable td.them{color:var(--coral-dk)}
+
+  @media (max-width:520px){
+    header{padding:8px 10px;gap:8px}
+    header .logo{font-size:1.05rem}
+    .clue{flex-wrap:wrap}
+    .clue .act{flex-direction:row;width:100%}
+    .clue .act .btn{flex:1}
+    .ticket .code{font-size:2.2rem;letter-spacing:8px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo"><span class="pin">📍</span>PIN DROP DUEL</div>
+    <div class="chip" id="roomchip" style="display:none">ROOM <b id="roomcode"></b></div>
+    <div class="scores" id="scorebar" style="display:none">
+      <div class="scorepill"><span class="dot me"></span><span id="myname">You</span>&nbsp;<span id="myscore">0</span></div>
+      <div class="scorepill"><span class="dot them"></span><span id="theirname">Them</span>&nbsp;<span id="theirscore">0</span></div>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="map"></div>
+    <div id="toast"></div>
+
+    <!-- LOBBY -->
+    <div class="overlay" id="lobby">
+      <div class="panel">
+        <h1><span class="pin">📍</span> Pin Drop Duel</h1>
+        <div class="tag">A head-to-head coordinate challenge on an ArcGIS Online world map</div>
+
+        <label for="nameinput">Your explorer name</label>
+        <input id="nameinput" maxlength="14" placeholder="e.g. MapMaster42" autocomplete="off">
+
+        <div class="divider">START A DUEL</div>
+        <label>Map difficulty</label>
+        <div class="seg">
+          <button id="diffEasy" class="on" type="button">🗺️ Explorer<br><small>labeled map</small></button>
+          <button id="diffHard" type="button">🛰️ Navigator<br><small>satellite, no labels</small></button>
+        </div>
+        <button class="btn" id="createbtn">Create a game room</button>
+
+        <div class="divider">OR JOIN ONE</div>
+        <label for="codeinput">Room code from your opponent</label>
+        <input id="codeinput" class="code" maxlength="4" placeholder="····" autocomplete="off">
+        <button class="btn alt" id="joinbtn">Join game</button>
+
+        <div class="err" id="lobbyerr"></div>
+        <div class="fineprint">Names, room codes, and pin guesses are stored in a shared game space so both players can see them. Use a nickname, not your real name.</div>
+      </div>
+    </div>
+
+    <!-- WAITING ROOM -->
+    <div class="overlay" id="waiting" style="display:none">
+      <div class="panel">
+        <h1>Room created!</h1>
+        <div class="tag">Have your opponent enter this code on their device</div>
+        <div class="ticket">
+          <div class="lbl">Room code</div>
+          <div class="code" id="bigcode">····</div>
+        </div>
+        <div style="margin-top:14px;font-weight:800;color:#4d6b7d"><span class="pulse"></span>Waiting for an opponent to join…</div>
+        <button class="btn ghost" id="cancelwait">Cancel</button>
+      </div>
+    </div>
+
+    <!-- CLUE BAR -->
+    <div id="cluebar" style="display:none">
+      <div class="clue">
+        <div class="roundbadge"><div class="n" id="roundnum">1</div><div class="of">OF 5</div></div>
+        <div class="txt">
+          <div class="kind" id="cluekind">FIND THE PLACE</div>
+          <div class="target" id="cluetext">…</div>
+          <div class="sub coordreadout" id="pinreadout">Tap the map to drop your pin</div>
+        </div>
+        <div class="act">
+          <button class="btn" id="lockbtn" disabled>Lock it in</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REVEAL CARD -->
+    <div id="reveal" style="display:none">
+      <div class="revealcard">
+        <h2 id="revealtitle">The answer: …</h2>
+        <div class="place coordreadout" id="revealcoords"></div>
+        <div class="distrow">
+          <div class="distbox me"><div class="who" id="revMeName">You</div><div class="km" id="revMeKm">–</div><div class="mi" id="revMeMi"></div></div>
+          <div class="distbox them"><div class="who" id="revThemName">Them</div><div class="km" id="revThemKm">–</div><div class="mi" id="revThemMi"></div></div>
+        </div>
+        <div class="verdict" id="verdict"></div>
+        <button class="btn" id="nextbtn">Next round →</button>
+      </div>
+    </div>
+
+    <!-- FINAL -->
+    <div class="overlay" id="final" style="display:none">
+      <div class="panel">
+        <div class="trophy" id="finalemoji">🏆</div>
+        <h1 id="finaltitle">Winner!</h1>
+        <div class="tag" id="finalsub"></div>
+        <table class="finaltable" id="finaltable"></table>
+        <button class="btn" id="againbtn">Back to lobby</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ================= CONFIG ================= */
+const ROUNDS = 5;
+const POLL_MS = 2500;
+const PREFIX = "pdd"; // storage namespace
+
+// ArcGIS Online basemap tile services (Esri)
+const BASEMAPS = {
+  easy: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    attr: "Map: Esri, ArcGIS Online — World Topographic Map"
+  },
+  hard: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attr: "Imagery: Esri, ArcGIS Online — World Imagery"
+  }
+};
+
+// Target pool: middle-school geography landmarks
+const POOL = [
+  {name:"The Eiffel Tower", country:"Paris, France", lat:48.858, lng:2.294},
+  {name:"The Great Pyramid of Giza", country:"Egypt", lat:29.979, lng:31.134},
+  {name:"The Statue of Liberty", country:"New York, USA", lat:40.689, lng:-74.044},
+  {name:"The Sydney Opera House", country:"Australia", lat:-33.857, lng:151.215},
+  {name:"Machu Picchu", country:"Peru", lat:-13.163, lng:-72.545},
+  {name:"Mount Everest", country:"Nepal / China border", lat:27.988, lng:86.925},
+  {name:"The Grand Canyon", country:"Arizona, USA", lat:36.107, lng:-112.113},
+  {name:"The Taj Mahal", country:"Agra, India", lat:27.175, lng:78.042},
+  {name:"The Great Wall (Badaling)", country:"China", lat:40.432, lng:116.570},
+  {name:"The Colosseum", country:"Rome, Italy", lat:41.890, lng:12.492},
+  {name:"Christ the Redeemer", country:"Rio de Janeiro, Brazil", lat:-22.952, lng:-43.210},
+  {name:"Niagara Falls", country:"Canada / USA border", lat:43.096, lng:-79.038},
+  {name:"Mount Kilimanjaro", country:"Tanzania", lat:-3.066, lng:37.353},
+  {name:"Tokyo Tower", country:"Japan", lat:35.659, lng:139.745},
+  {name:"The Golden Gate Bridge", country:"San Francisco, USA", lat:37.820, lng:-122.478},
+  {name:"Stonehenge", country:"England, UK", lat:51.179, lng:-1.826},
+  {name:"Victoria Falls", country:"Zambia / Zimbabwe border", lat:-17.924, lng:25.856},
+  {name:"Manaus, in the Amazon Rainforest", country:"Brazil", lat:-3.119, lng:-60.021},
+  {name:"Uluru (Ayers Rock)", country:"Australia", lat:-25.344, lng:131.037},
+  {name:"The Panama Canal", country:"Panama", lat:9.080, lng:-79.680},
+  {name:"Mount Fuji", country:"Japan", lat:35.361, lng:138.727},
+  {name:"Angkor Wat", country:"Cambodia", lat:13.412, lng:103.867},
+  {name:"The Acropolis", country:"Athens, Greece", lat:37.971, lng:23.726},
+  {name:"Chichén Itzá", country:"Mexico", lat:20.684, lng:-88.567},
+  {name:"The Serengeti", country:"Tanzania", lat:-2.333, lng:34.833},
+  {name:"Reykjavík", country:"Iceland", lat:64.147, lng:-21.942},
+  {name:"The Galápagos Islands", country:"Ecuador", lat:-0.777, lng:-91.142},
+  {name:"The Sahara Desert (central)", country:"North Africa", lat:23.416, lng:12.850}
+];
+
+/* ================= STORAGE HELPERS ================= */
+async function sGet(key){
+  try{
+    const r = await window.storage.get(key, true);
+    return r ? JSON.parse(r.value) : null;
+  }catch(e){ return null; }
+}
+async function sSet(key, obj){
+  try{
+    const r = await window.storage.set(key, JSON.stringify(obj), true);
+    return !!r;
+  }catch(e){ return false; }
+}
+const K = {
+  meta:  code => `${PREFIX}:${code}:meta`,
+  join:  code => `${PREFIX}:${code}:join`,
+  guess: (code, round, seat) => `${PREFIX}:${code}:g${round}:${seat}`
+};
+
+/* ================= STATE ================= */
+let map, baseLayer, myPin = null, revealLayers = [];
+let state = {
+  phase: "lobby",       // lobby | waiting | play | reveal | final
+  code: null,
+  seat: null,           // "host" | "guest"
+  myName: "", theirName: "",
+  meta: null,           // {targets:[...], diff, host}
+  round: 0,
+  locked: false,
+  pending: null,        // {lat,lng} before lock
+  results: []           // per-round {meKm, themKm, winner}
+};
+let pollTimer = null, storageOk = true;
+
+/* ================= DOM ================= */
+const $ = id => document.getElementById(id);
+const show = (id, on) => { $(id).style.display = on ? "" : "none"; };
+function toast(msg, ms){
+  const t = $("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h);
+  if(ms) t._h = setTimeout(()=>{ t.style.display="none"; }, ms);
+}
+function hideToast(){ $("toast").style.display = "none"; }
+
+/* ================= MAP ================= */
+function initMap(){
+  map = L.map("map", {worldCopyJump:true, minZoom:2}).setView([20, 10], 2);
+  setBasemap("easy");
+  map.on("click", onMapClick);
+}
+function setBasemap(diff){
+  if(baseLayer) map.removeLayer(baseLayer);
+  const b = BASEMAPS[diff] || BASEMAPS.easy;
+  baseLayer = L.tileLayer(b.url, {attribution:b.attr, maxZoom:12}).addTo(map);
+}
+function fmtCoord(lat, lng){
+  const la = Math.abs(lat).toFixed(2) + "°" + (lat >= 0 ? "N" : "S");
+  const lo = Math.abs(lng).toFixed(2) + "°" + (lng >= 0 ? "E" : "W");
+  return la + ", " + lo;
+}
+function haversineKm(a, b){
+  const R = 6371, d = Math.PI/180;
+  const dLat = (b.lat-a.lat)*d, dLng = (b.lng-a.lng)*d;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*d)*Math.cos(b.lat*d)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+function pinIcon(color){
+  return L.divIcon({
+    className:"", iconSize:[22,22], iconAnchor:[11,11],
+    html:`<div style="width:22px;height:22px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)"></div>`
+  });
+}
+function labelIcon(text){
+  return L.divIcon({className:"", iconAnchor:[-8,10], html:`<div class="pinlabel">${text}</div>`});
+}
+function onMapClick(e){
+  if(state.phase !== "play" || state.locked) return;
+  state.pending = {lat: e.latlng.lat, lng: ((e.latlng.lng + 540) % 360) - 180};
+  if(myPin) map.removeLayer(myPin);
+  myPin = L.marker(e.latlng, {icon: pinIcon("#0fa3a3")}).addTo(map);
+  $("pinreadout").textContent = "Your pin: " + fmtCoord(state.pending.lat, state.pending.lng);
+  $("lockbtn").disabled = false;
+}
+function clearRevealLayers(){
+  revealLayers.forEach(l => map.removeLayer(l));
+  revealLayers = [];
+  if(myPin){ map.removeLayer(myPin); myPin = null; }
+}
+
+/* ================= ROOM SETUP ================= */
+function makeCode(){
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ";
+  let c = "";
+  for(let i=0;i<4;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function pickTargets(){
+  const shuffled = [...POOL].sort(()=>Math.random()-0.5).slice(0, ROUNDS);
+  // Alternate clue modes: place-name rounds and raw-coordinate rounds
+  return shuffled.map((t,i)=>({ ...t, mode: i % 2 === 0 ? "place" : "coords" }));
+}
+function getName(){
+  const n = $("nameinput").value.trim();
+  if(!n){ $("lobbyerr").textContent = "Pick an explorer name first!"; return null; }
+  $("lobbyerr").textContent = "";
+  return n.replace(/[<>"']/g,"");
+}
+
+async function createRoom(){
+  const name = getName(); if(!name) return;
+  $("createbtn").disabled = true;
+  let code = makeCode(), tries = 0;
+  while(await sGet(K.meta(code)) && tries < 5){ code = makeCode(); tries++; }
+  const meta = {host:name, diff:selectedDiff, targets:pickTargets(), created:Date.now(), v:1};
+  const ok = await sSet(K.meta(code), meta);
+  $("createbtn").disabled = false;
+  if(!ok){ $("lobbyerr").textContent = "Couldn't create the room. Check your connection and try again."; return; }
+  state = {...state, code, seat:"host", myName:name, meta, phase:"waiting"};
+  $("bigcode").textContent = code;
+  show("lobby", false); show("waiting", true);
+  startPolling();
+}
+
+async function joinRoom(){
+  const name = getName(); if(!name) return;
+  const code = $("codeinput").value.trim().toUpperCase();
+  if(code.length !== 4){ $("lobbyerr").textContent = "Room codes are 4 letters."; return; }
+  $("joinbtn").disabled = true;
+  const meta = await sGet(K.meta(code));
+  if(!meta){
+    $("lobbyerr").textContent = "No room found with code " + code + ". Double-check it!";
+    $("joinbtn").disabled = false; return;
+  }
+  const existing = await sGet(K.join(code));
+  if(existing && existing.guest !== name){
+    $("lobbyerr").textContent = "That room already has two players. Create your own!";
+    $("joinbtn").disabled = false; return;
+  }
+  await sSet(K.join(code), {guest:name, joined:Date.now()});
+  state = {...state, code, seat:"guest", myName:name, theirName:meta.host, meta};
+  $("joinbtn").disabled = false;
+  enterGame();
+}
+
+function cancelWaiting(){
+  stopPolling();
+  state.phase = "lobby";
+  show("waiting", false); show("lobby", true);
+}
+
+/* ================= GAME FLOW ================= */
+function enterGame(){
+  state.phase = "play";
+  state.round = 0;
+  state.results = [];
+  setBasemap(state.meta.diff);
+  show("lobby", false); show("waiting", false); show("final", false);
+  show("roomchip", true); show("scorebar", true);
+  $("roomcode").textContent = state.code;
+  $("myname").textContent = state.myName;
+  $("theirname").textContent = state.theirName;
+  updateScoreboard();
+  startRound();
+  startPolling();
+}
+
+function startRound(){
+  clearRevealLayers();
+  hideToast();
+  state.locked = false;
+  state.pending = null;
+  const t = state.meta.targets[state.round];
+  $("roundnum").textContent = state.round + 1;
+  if(t.mode === "coords"){
+    $("cluekind").textContent = "NAVIGATE TO THESE COORDINATES";
+    $("cluetext").textContent = fmtCoord(t.lat, t.lng);
+  }else{
+    $("cluekind").textContent = "FIND THE PLACE";
+    $("cluetext").textContent = t.name + " — " + t.country;
+  }
+  $("pinreadout").textContent = "Tap the map to drop your pin";
+  $("lockbtn").disabled = true;
+  $("lockbtn").textContent = "Lock it in";
+  show("reveal", false);
+  show("cluebar", true);
+  map.setView([20,10], 2);
+}
+
+async function lockIn(){
+  if(!state.pending || state.locked) return;
+  state.locked = true;
+  $("lockbtn").disabled = true;
+  $("lockbtn").textContent = "Locked ✓";
+  const ok = await sSet(K.guess(state.code, state.round, state.seat), {
+    lat:+state.pending.lat.toFixed(4), lng:+state.pending.lng.toFixed(4), t:Date.now()
+  });
+  if(!ok){
+    state.locked = false;
+    $("lockbtn").disabled = false;
+    $("lockbtn").textContent = "Lock it in";
+    toast("Couldn't save your guess — try locking in again", 3000);
+    return;
+  }
+  toast("Waiting for " + state.theirName + " to lock in…");
+  checkRound(); // immediate check in case they already answered
+}
+
+async function checkRound(){
+  const r = state.round;
+  const mine = await sGet(K.guess(state.code, r, state.seat));
+  const theirSeat = state.seat === "host" ? "guest" : "host";
+  const theirs = await sGet(K.guess(state.code, r, theirSeat));
+  if(mine && theirs && state.phase === "play"){
+    showReveal(mine, theirs);
+  }
+}
+
+function showReveal(mine, theirs){
+  state.phase = "reveal";
+  hideToast();
+  const t = state.meta.targets[state.round];
+  const target = {lat:t.lat, lng:t.lng};
+  const meKm = haversineKm(mine, target);
+  const themKm = haversineKm(theirs, target);
+  const winner = Math.abs(meKm - themKm) < 0.5 ? "tie" : (meKm < themKm ? "me" : "them");
+  state.results[state.round] = {meKm, themKm, winner, place:t.name};
+
+  // draw everything
+  clearRevealLayers();
+  const star = L.marker(target, {icon: L.divIcon({className:"truestar", html:"⭐", iconAnchor:[13,13]})}).addTo(map);
+  const starLbl = L.marker(target, {icon: labelIcon(t.name)}).addTo(map);
+  const p1 = L.marker(mine, {icon: pinIcon("#0fa3a3")}).addTo(map);
+  const l1 = L.marker(mine, {icon: labelIcon(state.myName)}).addTo(map);
+  const p2 = L.marker(theirs, {icon: pinIcon("#ff6b5e")}).addTo(map);
+  const l2 = L.marker(theirs, {icon: labelIcon(state.theirName)}).addTo(map);
+  const line1 = L.polyline([mine, target], {color:"#0fa3a3", dashArray:"6 8", weight:2.5}).addTo(map);
+  const line2 = L.polyline([theirs, target], {color:"#ff6b5e", dashArray:"6 8", weight:2.5}).addTo(map);
+  revealLayers = [star, starLbl, p1, l1, p2, l2, line1, line2];
+  map.fitBounds(L.latLngBounds([mine, theirs, target]).pad(0.35));
+
+  // card
+  $("revealtitle").textContent = "The answer: " + t.name;
+  $("revealcoords").textContent = t.country + "  •  " + fmtCoord(t.lat, t.lng);
+  $("revMeName").textContent = state.myName;
+  $("revThemName").textContent = state.theirName;
+  $("revMeKm").textContent = Math.round(meKm).toLocaleString() + " km";
+  $("revMeMi").textContent = Math.round(meKm*0.6214).toLocaleString() + " miles away";
+  $("revThemKm").textContent = Math.round(themKm).toLocaleString() + " km";
+  $("revThemMi").textContent = Math.round(themKm*0.6214).toLocaleString() + " miles away";
+  const v = $("verdict");
+  if(winner === "tie"){ v.textContent = "Dead heat — you both get a point!"; v.className = "verdict tie"; }
+  else if(winner === "me"){ v.textContent = "🎉 " + state.myName + " takes the round!"; v.className = "verdict win"; }
+  else { v.textContent = state.theirName + " takes the round!"; v.className = "verdict lose"; }
+  $("nextbtn").textContent = state.round + 1 >= ROUNDS ? "See final results →" : "Next round →";
+  show("cluebar", false);
+  show("reveal", true);
+  updateScoreboard();
+}
+
+function updateScoreboard(){
+  let me = 0, them = 0;
+  state.results.forEach(r=>{
+    if(!r) return;
+    if(r.winner === "me") me++;
+    else if(r.winner === "them") them++;
+    else { me++; them++; }
+  });
+  $("myscore").textContent = me;
+  $("theirscore").textContent = them;
+  return {me, them};
+}
+
+function nextRound(){
+  if(state.round + 1 >= ROUNDS){ showFinal(); return; }
+  state.round++;
+  state.phase = "play";
+  startRound();
+}
+
+function showFinal(){
+  state.phase = "final";
+  stopPolling();
+  clearRevealLayers();
+  show("reveal", false); show("cluebar", false);
+  const {me, them} = updateScoreboard();
+  const iWin = me > them, tie = me === them;
+  $("finalemoji").textContent = tie ? "🤝" : (iWin ? "🏆" : "🌍");
+  $("finaltitle").textContent = tie ? "It's a tie!" : (iWin ? state.myName + " wins!" : state.theirName + " wins!");
+  $("finalsub").textContent = "Final score  " + state.myName + " " + me + " — " + them + " " + state.theirName;
+  let html = "<tr><th>Round</th><th>Place</th><th>" + state.myName + "</th><th>" + state.theirName + "</th></tr>";
+  state.results.forEach((r,i)=>{
+    if(!r) return;
+    html += `<tr><td>${i+1}</td><td style="text-align:left">${r.place}</td>
+      <td class="me">${Math.round(r.meKm).toLocaleString()} km</td>
+      <td class="them">${Math.round(r.themKm).toLocaleString()} km</td></tr>`;
+  });
+  $("finaltable").innerHTML = html;
+  show("final", true);
+}
+
+function backToLobby(){
+  stopPolling();
+  clearRevealLayers();
+  state = {phase:"lobby", code:null, seat:null, myName:state.myName, theirName:"",
+           meta:null, round:0, locked:false, pending:null, results:[]};
+  show("final", false); show("roomchip", false); show("scorebar", false);
+  show("cluebar", false); show("reveal", false);
+  setBasemap("easy");
+  map.setView([20,10], 2);
+  show("lobby", true);
+}
+
+/* ================= POLLING ================= */
+function startPolling(){
+  stopPolling();
+  pollTimer = setInterval(async ()=>{
+    if(state.phase === "waiting"){
+      const j = await sGet(K.join(state.code));
+      if(j && j.guest){
+        state.theirName = j.guest;
+        enterGame();
+      }
+    }else if(state.phase === "play" && state.locked){
+      checkRound();
+    }
+  }, POLL_MS);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+
+/* ================= WIRING ================= */
+let selectedDiff = "easy";
+$("diffEasy").addEventListener("click", ()=>{ selectedDiff="easy"; $("diffEasy").classList.add("on"); $("diffHard").classList.remove("on"); });
+$("diffHard").addEventListener("click", ()=>{ selectedDiff="hard"; $("diffHard").classList.add("on"); $("diffEasy").classList.remove("on"); });
+$("createbtn").addEventListener("click", createRoom);
+$("joinbtn").addEventListener("click", joinRoom);
+$("codeinput").addEventListener("input", e=>{ e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,""); });
+$("codeinput").addEventListener("keydown", e=>{ if(e.key==="Enter") joinRoom(); });
+$("cancelwait").addEventListener("click", cancelWaiting);
+$("lockbtn").addEventListener("click", lockIn);
+$("nextbtn").addEventListener("click", nextRound);
+$("againbtn").addEventListener("click", backToLobby);
+
+// storage availability check
+if(!window.storage){
+  storageOk = false;
+  $("lobbyerr").textContent = "Shared game storage isn't available here, so multiplayer can't start.";
+  $("createbtn").disabled = true;
+  $("joinbtn").disabled = true;
+}
+
+initMap();
+})();
+</script>
+</body>
+</html>
