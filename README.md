@@ -1,5 +1,7 @@
 # pindrop
 
+https://trbaker.github.io/pindrop/
+
 **Pin Drop Duel** is a head-to-head geography game in which pairs of students race to locate places on an interactive ArcGIS Online world map. One student creates a game room and receives a four-letter code; their partner enters that code on a second device, and the duel begins — so a whole class can play at once, with each pair in its own room. Every game consists of seven rounds that alternate between two kinds of clues: some rounds name a landmark ("Find Machu Picchu — Peru") and students must click where they believe it is, while others give only raw coordinates ("Navigate to 27.18°N, 78.04°E") that students must translate into a location on the map. After both players lock in their pins, the map reveals the true location alongside each guess, with the distance shown in kilometers and miles — the closer pin wins the round, and the player who takes the most rounds wins the match. Teachers can choose between two difficulty levels when creating a room: an "Explorer" mode using a labeled topographic map, and a "Navigator" mode using unlabeled satellite imagery for students ready for a genuine challenge.
 
 
