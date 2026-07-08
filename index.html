@@ -284,6 +284,13 @@ const ROUNDS = 5;
 const POLL_MS = 2500;
 const PREFIX = "pdd"; // storage namespace
 
+/* ===== REQUIRED SETUP =====
+   From your Supabase project's Settings → API page, paste:
+   1. The Project URL, e.g. "https://abcdefgh.supabase.co"
+   2. The anon / publishable key (the long public one, NOT the service_role key) */
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
+
 // ArcGIS Online basemap tile services (Esri)
 const BASEMAPS = {
   easy: {
@@ -328,17 +335,39 @@ const POOL = [
   {name:"The Sahara Desert (central)", country:"North Africa", lat:23.416, lng:12.850}
 ];
 
-/* ================= STORAGE HELPERS ================= */
+/* ================= STORAGE HELPERS =================
+   All shared game data lives in one Supabase table:
+     game_store (key text primary key, value jsonb)
+   accessed with plain fetch() calls to Supabase's REST API. */
+const configured = SUPABASE_URL.trim().length > 0 && SUPABASE_ANON_KEY.trim().length > 0;
+const SB_TABLE = "game_store";
+
+function sbBase(){ return SUPABASE_URL.trim().replace(/\/+$/,"") + "/rest/v1/" + SB_TABLE; }
+function sbHeaders(extra){
+  return Object.assign({
+    "apikey": SUPABASE_ANON_KEY.trim(),
+    "Authorization": "Bearer " + SUPABASE_ANON_KEY.trim(),
+    "Content-Type": "application/json"
+  }, extra || {});
+}
 async function sGet(key){
   try{
-    const r = await window.storage.get(key, true);
-    return r ? JSON.parse(r.value) : null;
+    const url = sbBase() + "?key=eq." + encodeURIComponent(key) + "&select=value";
+    const res = await fetch(url, {headers: sbHeaders()});
+    if(!res.ok) return null;
+    const rows = await res.json();
+    return (rows && rows.length) ? rows[0].value : null;
   }catch(e){ return null; }
 }
 async function sSet(key, obj){
   try{
-    const r = await window.storage.set(key, JSON.stringify(obj), true);
-    return !!r;
+    // Upsert: insert the row, or overwrite it if the key already exists
+    const res = await fetch(sbBase() + "?on_conflict=key", {
+      method: "POST",
+      headers: sbHeaders({"Prefer": "resolution=merge-duplicates,return=minimal"}),
+      body: JSON.stringify([{key: key, value: obj}])
+    });
+    return res.ok;
   }catch(e){ return false; }
 }
 const K = {
@@ -671,10 +700,10 @@ $("lockbtn").addEventListener("click", lockIn);
 $("nextbtn").addEventListener("click", nextRound);
 $("againbtn").addEventListener("click", backToLobby);
 
-// storage availability check
-if(!window.storage){
+// configuration check
+if(!configured){
   storageOk = false;
-  $("lobbyerr").textContent = "Shared game storage isn't available here, so multiplayer can't start.";
+  $("lobbyerr").textContent = "Setup needed: paste your Supabase project URL and anon key into the constants near the top of the script.";
   $("createbtn").disabled = true;
   $("joinbtn").disabled = true;
 }
